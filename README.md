@@ -24,14 +24,17 @@ optional).
 
 ## Install
 
-**Quick install** (downloads the latest release and checks its checksum):
+**Quick install:** downloads the latest release, checks its checksum, asks
+for your `mobilityprint://` link (and checks that it works), then offers to add
+the printers to your system print dialogs:
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/mattsoh/mpcloud/main/scripts/install.sh | sh
 ```
 
-To also install CUPS and add the printers to it, append `-s -- --cups`. To
-install into `~/.local/bin` without sudo, append `-s -- --user`.
+To skip the questions, pass options after `-s --`, for example
+`sh -s -- --link 'mobilityprint://...' --cups`. Add `--user` to install into
+`~/.local/bin` without sudo.
 
 **Debian / Ubuntu / Fedora packages:** download the `.deb` or `.rpm` for your
 architecture from the [latest release](https://github.com/mattsoh/mpcloud/releases/latest), then:
@@ -52,6 +55,8 @@ All methods install `mpcloud` plus a `printer` shortcut to it.
 
 ## Setup
 
+If you used the quick installer, you've already done step 1.
+
 1. **Get your link.** On your organization's Mobility Print setup page, choose
    the Cloud Print option. The page or its instructions contain a link like
    `mobilityprint://mp.cloud.papercut.com?token=eyJ…`. You can right-click
@@ -63,7 +68,10 @@ All methods install `mpcloud` plus a `printer` shortcut to it.
    mpcloud setup 'mobilityprint://mp.cloud.papercut.com?token=…'
    ```
 
-   (Or just run `mpcloud`, which asks for the link the first time.)
+   (Or just run `mpcloud`, which asks for the link the first time.) The link
+   is checked with the server before it's saved. If it ever stops working,
+   for example because it expired or your organization issued a new one,
+   `mpcloud` tells you and asks for a new one.
 
 2. **Print once interactively.** This signs you in:
 
@@ -156,6 +164,9 @@ clears the token.
   `@domain`, or with it if you left it off. Some organizations allow only
   Google sign-in, which mpcloud doesn't support yet. `mpcloud info` shows
   which sign-in methods your server allows.
+- **`the Cloud Print link is invalid or has expired`**: get a fresh link from
+  your organization's Mobility Print setup page and run `mpcloud setup '…'`
+  (or just `mpcloud`, which asks for it).
 - **`timed out waiting for the Mobility Print server to answer`**: your
   organization's server is offline or unreachable. Try again later.
 - **CUPS job fails with "login expired"**: run `mpcloud` and print once to

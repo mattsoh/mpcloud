@@ -4,8 +4,11 @@
 #
 #   curl -fsSL https://raw.githubusercontent.com/mattsoh/mpcloud/main/scripts/install.sh | sh
 #
-# Options (pass after `sh -s --` when piping):
-#   --cups        also install CUPS and add the printers to it (needs setup first)
+# It asks for your mobilityprint:// link and whether to add the printers to
+# CUPS. Options (pass after `sh -s --` when piping):
+#   --link URL    use this link instead of asking
+#   --cups        add the printers to CUPS (installing CUPS if needed) without asking
+#   --no-cups     don't offer CUPS
 #   --user        install to ~/.local/bin instead of /usr/local/bin (no sudo)
 #   --version V   install a specific release tag instead of the latest
 #   --uninstall   remove mpcloud
@@ -13,6 +16,8 @@ set -eu
 
 REPO="mattsoh/mpcloud"
 WITH_CUPS=0
+NO_CUPS=0
+LINK=""
 USER_INSTALL=0
 VERSION=""
 UNINSTALL=0
@@ -20,11 +25,13 @@ UNINSTALL=0
 while [ $# -gt 0 ]; do
 	case "$1" in
 	--cups) WITH_CUPS=1 ;;
+	--no-cups) NO_CUPS=1 ;;
+	--link) LINK="$2"; shift ;;
 	--user) USER_INSTALL=1 ;;
 	--version) VERSION="$2"; shift ;;
 	--uninstall) UNINSTALL=1 ;;
 	-h | --help)
-		echo "usage: install.sh [--cups] [--user] [--version vX.Y.Z] [--uninstall]"
+		echo "usage: install.sh [--link URL] [--cups|--no-cups] [--user] [--version vX.Y.Z] [--uninstall]"
 		exit 0
 		;;
 	*) echo "unknown option: $1" >&2; exit 2 ;;
@@ -126,12 +133,56 @@ if [ -x /usr/lib/cups/backend/mpcloud ]; then
 	fi
 fi
 
-"$BIN_DIR/mpcloud" version
+MP="$BIN_DIR/mpcloud"
+"$MP" version
+CONFIG="${XDG_CONFIG_HOME:-$HOME/.config}/mpcloud/config.json"
+
+# Prompts read from the terminal: when piped from curl, stdin is this script.
+HAVE_TTY=0
+if (: </dev/tty) 2>/dev/null; then
+	HAVE_TTY=1
+fi
+ask() {
+	printf '%s' "$1" >/dev/tty
+	IFS= read -r REPLY </dev/tty || REPLY=""
+}
+
+# Set up the Cloud Print link; `mpcloud setup` checks it with the server.
+if [ -n "$LINK" ]; then
+	"$MP" setup "$LINK" || die "that link was not accepted"
+elif [ -f "$CONFIG" ]; then
+	say "Already set up (link saved in $CONFIG)"
+elif [ "$HAVE_TTY" = 1 ]; then
+	echo
+	say "Connect to your organization's Mobility Print"
+	echo "On your organization's Mobility Print setup page, choose Cloud Print and"
+	echo "copy the mobilityprint://... link (right-click the \"open\" button > Copy link)."
+	while :; do
+		ask "Paste your link (or press Enter to skip): "
+		if [ -z "$REPLY" ]; then
+			echo "Skipped. Later, run: mpcloud setup 'mobilityprint://...'"
+			break
+		fi
+		if "$MP" setup "$REPLY"; then
+			break
+		fi
+		echo "Please try again."
+	done
+fi
+
+# Offer CUPS (lp and print dialogs) once there's a working link.
+if [ "$WITH_CUPS" = 0 ] && [ "$NO_CUPS" = 0 ] && [ "$HAVE_TTY" = 1 ] && [ -f "$CONFIG" ]; then
+	echo
+	ask "Add the printers to your system print dialogs and lp (CUPS)? [y/N] "
+	case "$REPLY" in
+	[yY]*) WITH_CUPS=1 ;;
+	esac
+fi
 
 if [ "$WITH_CUPS" = 1 ]; then
 	if ! command -v lpadmin >/dev/null 2>&1; then
+		say "Installing CUPS"
 		if command -v apt-get >/dev/null; then
-			say "Installing CUPS"
 			sudo apt-get install -y cups cups-filters
 		elif command -v dnf >/dev/null; then
 			sudo dnf install -y cups cups-filters
@@ -139,30 +190,26 @@ if [ "$WITH_CUPS" = 1 ]; then
 			sudo pacman -S --needed --noconfirm cups cups-filters
 			sudo systemctl enable --now cups.service
 		else
-			die "install CUPS with your package manager, then run: sudo $BIN_DIR/mpcloud install-cups"
+			die "install CUPS with your package manager, then run: sudo $MP install-cups"
 		fi
 	fi
-	if [ -f "${XDG_CONFIG_HOME:-$HOME/.config}/mpcloud/config.json" ]; then
+	if [ -f "$CONFIG" ]; then
 		say "Adding printers to CUPS"
-		sudo "$BIN_DIR/mpcloud" install-cups
+		sudo "$MP" install-cups
 	else
-		say "CUPS is ready. After setting up your link (below), run: sudo $BIN_DIR/mpcloud install-cups"
+		say "CUPS is ready. After setting up your link, run: sudo $MP install-cups"
 	fi
 fi
 
 case ":$PATH:" in
 *":$BIN_DIR:"*) ;;
-*) say "Note: $BIN_DIR is not on your PATH; add it or run $BIN_DIR/mpcloud" ;;
+*) say "Note: $BIN_DIR is not on your PATH; add it or run $MP" ;;
 esac
 
-cat <<EOF
-
-Next steps:
-  1. Open your organization's Mobility Print setup page and copy the
-     mobilityprint:// link (or click it - mpcloud is registered to handle it):
-         mpcloud setup 'mobilityprint://...'
-  2. Print interactively (signs you in and remembers you):
-         mpcloud
-  3. Optional - use lp and normal print dialogs:
-         sudo $BIN_DIR/mpcloud install-cups
-EOF
+echo
+if [ -f "$CONFIG" ]; then
+	say "All set! Run \`mpcloud\` to print. It signs you in the first time and remembers you."
+else
+	say "Installed. Set up your link with: mpcloud setup 'mobilityprint://...'"
+	echo "    then run \`mpcloud\` to print."
+fi

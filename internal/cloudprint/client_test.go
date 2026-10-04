@@ -3,9 +3,13 @@ package cloudprint
 import (
 	"bytes"
 	"compress/gzip"
+	"encoding/base64"
+	"errors"
+	"fmt"
 	"net/url"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/pion/webrtc/v4"
 )
@@ -64,5 +68,27 @@ func TestPrinterURL(t *testing.T) {
 	parts := strings.Split(u.Path, "/printers/")
 	if len(parts) != 2 || parts[1] != name {
 		t.Fatalf("round trip gave %q", u.Path)
+	}
+}
+
+func jwt(payload string) string {
+	enc := base64.RawURLEncoding.EncodeToString
+	return enc([]byte(`{"alg":"RS256"}`)) + "." + enc([]byte(payload)) + ".sig"
+}
+
+func TestCheckShareToken(t *testing.T) {
+	future := time.Now().Add(time.Hour).Unix()
+	cases := map[string]bool{
+		jwt(fmt.Sprintf(`{"exp":%d}`, future)): true,
+		jwt(`{"sub":"tokenCreation"}`):         true,
+		jwt(`{"exp":1}`):                       false,
+		"garbage":                              false,
+		"a.!!!.c":                              false,
+	}
+	for tok, ok := range cases {
+		err := CheckShareToken(tok)
+		if (err == nil) != ok || (err != nil && !errors.Is(err, ErrInvalidLink)) {
+			t.Errorf("CheckShareToken(%q) = %v, want ok=%t", tok, err, ok)
+		}
 	}
 }

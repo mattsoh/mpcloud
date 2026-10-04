@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -8,6 +9,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/mattsoh/mpcloud/internal/cloudprint"
 )
 
 type config struct {
@@ -72,7 +75,7 @@ func (c *config) save() error {
 // parseLink extracts the cloud host and share token from a
 // mobilityprint://<host>?token=<jwt> link.
 func parseLink(link string) (host, token string, err error) {
-	u, err := url.Parse(strings.TrimSpace(link))
+	u, err := url.Parse(cleanLink(link))
 	if err != nil {
 		return "", "", err
 	}
@@ -84,4 +87,19 @@ func parseLink(link string) (host, token string, err error) {
 		return "", "", errors.New("the link is missing its host or token")
 	}
 	return u.Host, token, nil
+}
+
+// cleanLink strips copy-paste debris such as whitespace, quotes or angle
+// brackets from a pasted link.
+func cleanLink(link string) string {
+	return strings.Trim(strings.TrimSpace(link), `"'<>`)
+}
+
+// verifyLink checks the link's token locally and with the cloud service.
+func verifyLink(ctx context.Context, link string) error {
+	host, token, err := parseLink(link)
+	if err != nil {
+		return err
+	}
+	return cloudprint.NewClient(host, token).Verify(ctx)
 }

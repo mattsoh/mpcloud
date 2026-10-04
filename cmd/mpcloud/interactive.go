@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -85,17 +86,38 @@ func askCredentials(cfg *config) (cloudprint.Credentials, error) {
 	return creds, nil
 }
 
+// promptLink asks for a mobilityprint:// link until the cloud service accepts
+// one, then saves it.
+func promptLink(ctx context.Context, cfg *config) error {
+	fmt.Println("Paste the mobilityprint:// link from your organization's Mobility Print")
+	fmt.Println("setup page (the link its \"open in app\" button points to).")
+	for {
+		link := cleanLink(ask("Link", ""))
+		if _, _, err := parseLink(link); err != nil {
+			fmt.Println("  That doesn't look right:", err)
+			continue
+		}
+		if err := verifyLink(ctx, link); err != nil {
+			fmt.Println("  That link didn't work:", err)
+			continue
+		}
+		if cfg.Link != link {
+			cfg.RememberedToken = ""
+		}
+		cfg.Link = link
+		if err := cfg.save(); err != nil {
+			return err
+		}
+		fmt.Println("  Link saved.")
+		return nil
+	}
+}
+
 func interactive(ctx context.Context, verbose bool) error {
 	cfg, err := loadConfig()
 	if err == errNotConfigured {
-		fmt.Println("First, paste the mobilityprint:// link from your organization's Mobility Print")
-		fmt.Println("setup page (the link the \"Open\" button would send to the official app).")
-		link := ask("Link", "")
-		if _, _, err := parseLink(link); err != nil {
-			return err
-		}
-		cfg = &config{Link: link}
-		if err := cfg.save(); err != nil {
+		cfg = &config{}
+		if err := promptLink(ctx, cfg); err != nil {
 			return err
 		}
 	} else if err != nil {
@@ -104,6 +126,14 @@ func interactive(ctx context.Context, verbose bool) error {
 
 	fmt.Println("Connecting to Mobility Print...")
 	s, err := openSession(ctx, cfg, verbose)
+	for errors.Is(err, cloudprint.ErrInvalidLink) {
+		fmt.Println("\nYour saved link no longer works:", err)
+		if err := promptLink(ctx, cfg); err != nil {
+			return err
+		}
+		fmt.Println("Connecting to Mobility Print...")
+		s, err = openSession(ctx, cfg, verbose)
+	}
 	if err != nil {
 		return err
 	}

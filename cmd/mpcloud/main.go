@@ -27,7 +27,8 @@ func usage() {
 
 usage:
   mpcloud                               interactive mode (prompts for everything)
-  mpcloud setup 'mobilityprint://...'   save your organization's Cloud Print link
+  mpcloud setup [--no-verify] 'mobilityprint://...'
+                                        check and save your organization's link
   mpcloud printers [-json]              list printers
   mpcloud print -p PRINTER [options] FILE|-
       -duplex NO_DUPLEX|LONG_EDGE|SHORT_EDGE
@@ -79,10 +80,14 @@ func run(ctx context.Context, cmd string, args []string, verbose bool) error {
 		return nil
 
 	case "setup":
+		verify := true
+		if len(args) == 2 && args[0] == "--no-verify" {
+			verify, args = false, args[1:]
+		}
 		if len(args) != 1 {
 			usage()
 		}
-		return setup(args[0])
+		return setup(ctx, args[0], verify)
 
 	case "logout":
 		cfg, err := loadConfig()
@@ -148,9 +153,15 @@ func run(ctx context.Context, cmd string, args []string, verbose bool) error {
 	return nil
 }
 
-func setup(link string) error {
+func setup(ctx context.Context, link string, verify bool) error {
+	link = cleanLink(link)
 	if _, _, err := parseLink(link); err != nil {
 		return err
+	}
+	if verify {
+		if err := verifyLink(ctx, link); err != nil {
+			return err
+		}
 	}
 	cfg, err := loadConfig()
 	if err != nil {

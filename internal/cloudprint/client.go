@@ -255,12 +255,65 @@ func decodeSD(s string) (webrtc.SessionDescription, error) {
 	return sd, json.Unmarshal(b, &sd)
 }
 
+// ErrInvalidLink means the share token from the mobilityprint:// link is
+// malformed, expired or was rejected by the cloud service.
+var ErrInvalidLink = errors.New("the Cloud Print link is invalid or has expired")
+
+// CheckShareToken validates a share token locally: it must be a JWT whose
+// expiry, if present, is in the future. It does not verify the signature.
+func CheckShareToken(token string) error {
+	parts := strings.Split(token, ".")
+	if len(parts) != 3 {
+		return fmt.Errorf("%w (token is not a JWT)", ErrInvalidLink)
+	}
+	payload, err := base64.RawURLEncoding.DecodeString(strings.TrimRight(parts[1], "="))
+	if err != nil {
+		return fmt.Errorf("%w (token is not a JWT)", ErrInvalidLink)
+	}
+	var claims struct {
+		Exp int64 `json:"exp"`
+	}
+	if err := json.Unmarshal(payload, &claims); err != nil {
+		return fmt.Errorf("%w (token is not a JWT)", ErrInvalidLink)
+	}
+	if claims.Exp != 0 && time.Unix(claims.Exp, 0).Before(time.Now()) {
+		return fmt.Errorf("%w (expired %s)", ErrInvalidLink, time.Unix(claims.Exp, 0).Format("2006-01-02"))
+	}
+	return nil
+}
+
+func (c *Client) createSession(ctx context.Context) (*createSessionResponse, error) {
+	if err := CheckShareToken(c.shareToken); err != nil {
+		return nil, err
+	}
+	var sess createSessionResponse
+	code, err := c.do(ctx, "POST", "/session", "", struct{}{}, &sess)
+	if code == http.StatusUnauthorized || code == http.StatusForbidden {
+		return nil, fmt.Errorf("%w (rejected by %s)", ErrInvalidLink, c.host)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("creating session: %w", err)
+	}
+	return &sess, nil
+}
+
+// Verify checks with the cloud service that the share token is accepted,
+// without connecting to the Mobility Print server.
+func (c *Client) Verify(ctx context.Context) error {
+	sess, err := c.createSession(ctx)
+	if err != nil {
+		return err
+	}
+	c.do(ctx, "DELETE", "/session/"+sess.ID, "", nil, nil)
+	return nil
+}
+
 // Connect establishes the session and peer connection and waits for all data
 // channels to open.
 func (c *Client) Connect(ctx context.Context) error {
-	var sess createSessionResponse
-	if _, err := c.do(ctx, "POST", "/session", "", struct{}{}, &sess); err != nil {
-		return fmt.Errorf("creating session: %w", err)
+	sess, err := c.createSession(ctx)
+	if err != nil {
+		return err
 	}
 	c.sessionID = sess.ID
 	c.chunkSize = sess.ICEConfig.MaxChunkSize
