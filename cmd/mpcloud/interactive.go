@@ -174,8 +174,15 @@ func interactive(ctx context.Context, verbose bool) error {
 
 	var file string
 	var doc []byte
+	fmt.Println("\nWhat should be printed? Enter a file path (PDF works best), or press")
+	fmt.Println("Enter to print a one-page test page.")
 	for {
-		file = expandHome(ask("\nFile to print (PDF)", ""))
+		file = ask("File", "test page")
+		if file == "test page" || strings.EqualFold(file, "test") {
+			file, doc = "Test page.pdf", testPagePDF()
+			break
+		}
+		file = expandHome(file)
 		if doc, err = os.ReadFile(file); err == nil {
 			break
 		}

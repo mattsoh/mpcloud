@@ -2,7 +2,7 @@
 # Install mpcloud (unofficial Mobility Print Cloud Print client for Linux)
 # from the latest GitHub release.
 #
-#   curl -fsSL https://raw.githubusercontent.com/mattsoh/mpcloud/main/scripts/install.sh | sh
+#   curl -fsSL https://github.com/mattsoh/mpcloud/releases/latest/download/install.sh | sh
 #
 # It asks for your mobilityprint:// link and whether to add the printers to
 # CUPS. Options (pass after `sh -s --` when piping):
@@ -157,7 +157,18 @@ elif [ "$HAVE_TTY" = 1 ]; then
 	say "Connect to your organization's Mobility Print"
 	# mpcloud prints the instructions and checks the link itself, so they
 	# always match the version just installed.
-	"$MP" setup </dev/tty || true
+	rc=0
+	"$MP" setup </dev/tty 2>/dev/null || rc=$?
+	if [ "$rc" = 2 ]; then
+		# Older mpcloud without a link prompt: ask here instead.
+		echo "Copy the address from your browser's address bar (it contains \"?token=\")."
+		while :; do
+			ask "Paste it here (or press Enter to skip): "
+			[ -z "$REPLY" ] && break
+			"$MP" setup "$REPLY" && break
+			echo "Please try again."
+		done
+	fi
 fi
 
 # Offer CUPS (lp and print dialogs) once there's a working link.
@@ -196,9 +207,32 @@ case ":$PATH:" in
 *) say "Note: $BIN_DIR is not on your PATH; add it or run $MP" ;;
 esac
 
+# Finish setup by signing in: PaperCut only confirms a login when a job is
+# sent, so this walks through printing something (a test page works).
+SIGNED_IN=0
+if [ "$HAVE_TTY" = 1 ] && [ -f "$CONFIG" ] && ! grep -q '"rememberedToken"' "$CONFIG"; then
+	echo
+	say "Sign in to PaperCut"
+	echo "Printing one document signs you in and saves your login, so printing from"
+	echo "apps works without asking again."
+	ask "Sign in and print something now? [Y/n] "
+	case "$REPLY" in
+	[nN]*) ;;
+	*)
+		echo
+		"$MP" </dev/tty || true
+		;;
+	esac
+fi
+if [ -f "$CONFIG" ] && grep -q '"rememberedToken"' "$CONFIG"; then
+	SIGNED_IN=1
+fi
+
 echo
-if [ -f "$CONFIG" ]; then
-	say "All set! Run \`mpcloud\` to print. It signs you in the first time and remembers you."
+if [ "$SIGNED_IN" = 1 ]; then
+	say "All set! Print with \`mpcloud\`, or from any app if you added the printers to CUPS."
+elif [ -f "$CONFIG" ]; then
+	say "Connected. Run \`mpcloud\` to sign in and print."
 else
 	say "Installed. Run \`mpcloud\` to connect and print."
 fi

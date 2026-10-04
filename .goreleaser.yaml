@@ -73,8 +73,11 @@ release:
   github:
     owner: mattsoh
     name: mpcloud
+  # Ship the installer with each release so it always matches the binaries.
+  extra_files:
+    - glob: scripts/install.sh
   footer: |
-    **Install:** `curl -fsSL https://raw.githubusercontent.com/mattsoh/mpcloud/main/scripts/install.sh | sh`
+    **Install:** `curl -fsSL https://github.com/mattsoh/mpcloud/releases/latest/download/install.sh | sh`
     or download the `.deb` / `.rpm` for your architecture below.
 
 changelog:

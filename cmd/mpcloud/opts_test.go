@@ -1,6 +1,9 @@
 package main
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestParseCUPSOptions(t *testing.T) {
 	o := parseCUPSOptions(`job-uuid=urn:uuid:1 Duplex=DuplexNoTumble PageSize=A4 job-name='my doc' x=a\ b collate`)
@@ -38,5 +41,12 @@ func TestNormalizeLink(t *testing.T) {
 		if got, err := normalizeLink(in); err == nil {
 			t.Errorf("normalizeLink(%q) = %q, want error", in, got)
 		}
+	}
+}
+
+func TestTestPagePDF(t *testing.T) {
+	pdf := string(testPagePDF())
+	if !strings.HasPrefix(pdf, "%PDF-1.4") || !strings.HasSuffix(pdf, "%%EOF\n") || !strings.Contains(pdf, "Printer Test Page") {
+		t.Fatal("test page is not a well-formed PDF")
 	}
 }

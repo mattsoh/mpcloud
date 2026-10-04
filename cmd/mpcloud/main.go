@@ -42,6 +42,10 @@ usage:
   mpcloud info                          show Mobility Print server info
   sudo mpcloud install-cups             add the printers to CUPS (lp, print dialogs)
   sudo mpcloud uninstall-cups           remove them again
+  sudo mpcloud share                    share those printers with your devices
+                                        over Tailscale (incl. AirPrint profile)
+  sudo mpcloud unshare                  stop sharing
+  mpcloud airprint-profile              re-create the iPhone/iPad/Mac profile
   mpcloud version
 
 global flags: -v  verbose protocol logging
@@ -122,6 +126,28 @@ func run(ctx context.Context, cmd string, args []string, verbose bool) error {
 
 	case "uninstall-cups":
 		return uninstallCUPS()
+
+	case "share":
+		return shareTailscale()
+
+	case "unshare":
+		return unshareTailscale()
+
+	case "airprint-profile":
+		ip, err := tailscaleIPv4()
+		if err != nil {
+			return err
+		}
+		qs := mpcloudQueues()
+		if len(qs) == 0 {
+			return errors.New("no mpcloud printers in CUPS yet; run: sudo mpcloud install-cups")
+		}
+		path, err := writeProfileForSudoUser(ip, qs)
+		if err != nil {
+			return err
+		}
+		fmt.Println("Wrote", path)
+		return nil
 
 	case "info":
 		cfg, err := loadConfig()

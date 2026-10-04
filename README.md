@@ -29,7 +29,7 @@ for your `mobilityprint://` link (and checks that it works), then offers to add
 the printers to your system print dialogs:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/mattsoh/mpcloud/main/scripts/install.sh | sh
+curl -fsSL https://github.com/mattsoh/mpcloud/releases/latest/download/install.sh | sh
 ```
 
 To skip the questions, pass options after `-s --`, for example
@@ -108,6 +108,41 @@ If you used the quick installer, you've already done step 1.
    The printers also appear in every app's print dialog. CUPS jobs use your
    saved login, so do step 2 first.
 
+## Print from your phone and other devices (Tailscale + AirPrint)
+
+If you use [Tailscale](https://tailscale.com), the machine running mpcloud can
+share its printers with all your devices, including iPhones and iPads via
+AirPrint, wherever they are:
+
+```sh
+sudo mpcloud share
+```
+
+This:
+
+- opens CUPS to **Tailscale addresses only** (`100.64.0.0/10`,
+  `fd7a:115c:a1e0::/48`), so other people on your Wi-Fi can't print on your
+  account
+- shares the mpcloud printers, and opens port 631 on `tailscale0` if ufw is on
+- writes `~/mpcloud-airprint.mobileconfig`, an AirPrint profile pointing at
+  this machine's Tailscale IP
+
+AirPrint normally finds printers with Bonjour, which doesn't work over
+Tailscale. The profile tells your devices where the printers are instead:
+
+- **iPhone / iPad:** send the profile with Taildrop
+  (`tailscale file cp ~/mpcloud-airprint.mobileconfig my-iphone:`), open it
+  from the Files app, then install it in Settings. The printers then show up
+  in every Print menu while Tailscale is connected.
+- **Mac:** double-click the profile and install it in System Settings, or add
+  an IP printer: your Tailscale IP, protocol IPP, queue `printers/<name>`.
+- **Windows / Linux:** add a printer by URL:
+  `http://<tailscale-ip>:631/printers/<name>`.
+
+Jobs from your devices go through the machine running mpcloud and use its
+PaperCut login, so that machine has to be on and connected. To stop sharing,
+run `sudo mpcloud unshare`.
+
 ## Usage
 
 ```
@@ -124,6 +159,8 @@ mpcloud logout                        forget the saved login
 mpcloud info                          show server version and sign-in options
 sudo mpcloud install-cups             add printers to CUPS
 sudo mpcloud uninstall-cups           remove them
+sudo mpcloud share / unshare          share printers over Tailscale (AirPrint)
+mpcloud airprint-profile              re-create the AirPrint profile
 ```
 
 Add `-v` before any command for a full protocol log, for example
@@ -185,7 +222,7 @@ clears the token.
 ```sh
 sudo mpcloud uninstall-cups        # if you added printers to CUPS
 sudo apt remove mpcloud            # package install
-# or: curl -fsSL …/scripts/install.sh | sh -s -- --uninstall
+# or: curl -fsSL https://github.com/mattsoh/mpcloud/releases/latest/download/install.sh | sh -s -- --uninstall
 rm -rf ~/.config/mpcloud           # forget your link and login
 ```
 
