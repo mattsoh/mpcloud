@@ -159,7 +159,7 @@ func backendMain() int {
 	fmt.Fprintln(os.Stderr, "INFO: Connecting to Mobility Print")
 	s, err := openSession(ctx, cfg, false)
 	if errors.Is(err, cloudprint.ErrInvalidLink) {
-		fmt.Fprintln(os.Stderr, "ERROR:", err, "- get a new link and run: mpcloud setup 'mobilityprint://...'")
+		fmt.Fprintln(os.Stderr, "ERROR:", err, "- run `mpcloud` in a terminal and paste a new link")
 		return backendFailed
 	}
 	if err != nil {

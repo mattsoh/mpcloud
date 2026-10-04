@@ -6,7 +6,7 @@
 #
 # It asks for your mobilityprint:// link and whether to add the printers to
 # CUPS. Options (pass after `sh -s --` when piping):
-#   --link URL    use this link instead of asking
+#   --link URL    use this link (browser address, mobilityprint:// link or token)
 #   --cups        add the printers to CUPS (installing CUPS if needed) without asking
 #   --no-cups     don't offer CUPS
 #   --user        install to ~/.local/bin instead of /usr/local/bin (no sudo)
@@ -155,12 +155,14 @@ elif [ -f "$CONFIG" ]; then
 elif [ "$HAVE_TTY" = 1 ]; then
 	echo
 	say "Connect to your organization's Mobility Print"
-	echo "On your organization's Mobility Print setup page, choose Cloud Print and"
-	echo "copy the mobilityprint://... link (right-click the \"open\" button > Copy link)."
+	echo "Open the Cloud Print setup link your organization gave you, then copy the"
+	echo "address from your browser's address bar (it contains \"?token=\")."
+	echo "A mobilityprint:// link or just the token works too."
 	while :; do
-		ask "Paste your link (or press Enter to skip): "
+		echo
+		ask "Paste it here (or press Enter to skip): "
 		if [ -z "$REPLY" ]; then
-			echo "Skipped. Later, run: mpcloud setup 'mobilityprint://...'"
+			echo "Skipped. You can paste it later by running: mpcloud"
 			break
 		fi
 		if "$MP" setup "$REPLY"; then
@@ -197,7 +199,7 @@ if [ "$WITH_CUPS" = 1 ]; then
 		say "Adding printers to CUPS"
 		sudo "$MP" install-cups
 	else
-		say "CUPS is ready. After setting up your link, run: sudo $MP install-cups"
+		say "CUPS is ready. After connecting (run \`mpcloud\`), run: sudo $MP install-cups"
 	fi
 fi
 
@@ -210,6 +212,5 @@ echo
 if [ -f "$CONFIG" ]; then
 	say "All set! Run \`mpcloud\` to print. It signs you in the first time and remembers you."
 else
-	say "Installed. Set up your link with: mpcloud setup 'mobilityprint://...'"
-	echo "    then run \`mpcloud\` to print."
+	say "Installed. Run \`mpcloud\` to connect and print."
 fi

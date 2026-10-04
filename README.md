@@ -33,7 +33,7 @@ curl -fsSL https://raw.githubusercontent.com/mattsoh/mpcloud/main/scripts/instal
 ```
 
 To skip the questions, pass options after `-s --`, for example
-`sh -s -- --link 'mobilityprint://...' --cups`. Add `--user` to install into
+`sh -s -- --link 'https://mp.cloud.papercut.com/?token=…' --cups`. Add `--user` to install into
 `~/.local/bin` without sudo.
 
 **Debian / Ubuntu / Fedora packages:** download the `.deb` or `.rpm` for your
@@ -57,21 +57,27 @@ All methods install `mpcloud` plus a `printer` shortcut to it.
 
 If you used the quick installer, you've already done step 1.
 
-1. **Get your link.** On your organization's Mobility Print setup page, choose
-   the Cloud Print option. The page or its instructions contain a link like
-   `mobilityprint://mp.cloud.papercut.com?token=eyJ…`. You can right-click
-   the "open in app" button and copy the link. If mpcloud was installed with
-   the installer or a package, clicking the link sets it up automatically.
-   Otherwise:
+1. **Connect.** Open the Cloud Print setup link your organization gave you,
+   then copy the address from your browser's address bar. It looks like
+   `https://mp.cloud.papercut.com/?token=eyJ…`. Run `mpcloud` and paste it
+   when asked:
 
    ```sh
-   mpcloud setup 'mobilityprint://mp.cloud.papercut.com?token=…'
+   mpcloud
    ```
 
-   (Or just run `mpcloud`, which asks for the link the first time.) The link
-   is checked with the server before it's saved. If it ever stops working,
-   for example because it expired or your organization issued a new one,
-   `mpcloud` tells you and asks for a new one.
+   Any of these can be pasted:
+
+   | What you have | Example |
+   | --- | --- |
+   | The browser address | `https://mp.cloud.papercut.com/?token=eyJ…` |
+   | The app link | `mobilityprint://mp.cloud.papercut.com?token=eyJ…` |
+   | Just the token | `eyJ…` |
+
+   mpcloud checks it with the server before saving it. If it ever stops
+   working, for example because it expired or your organization issued a new
+   one, mpcloud tells you and asks for a new one. In scripts, use
+   `mpcloud setup 'https://mp.cloud.papercut.com/?token=…'`.
 
 2. **Print once interactively.** This signs you in:
 
@@ -106,7 +112,7 @@ If you used the quick installer, you've already done step 1.
 
 ```
 mpcloud                               interactive mode
-mpcloud setup 'mobilityprint://...'   save your organization's link
+mpcloud setup LINK                    check and save your organization's link
 mpcloud printers [-json]              list printers and their capabilities
 mpcloud print -p PRINTER [options] FILE|-
     -duplex NO_DUPLEX|LONG_EDGE|SHORT_EDGE
@@ -165,8 +171,7 @@ clears the token.
   Google sign-in, which mpcloud doesn't support yet. `mpcloud info` shows
   which sign-in methods your server allows.
 - **`the Cloud Print link is invalid or has expired`**: get a fresh link from
-  your organization's Mobility Print setup page and run `mpcloud setup '…'`
-  (or just `mpcloud`, which asks for it).
+  your organization and run `mpcloud`, which asks for it.
 - **`timed out waiting for the Mobility Print server to answer`**: your
   organization's server is offline or unreachable. Try again later.
 - **CUPS job fails with "login expired"**: run `mpcloud` and print once to

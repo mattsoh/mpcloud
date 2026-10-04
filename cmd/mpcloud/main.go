@@ -27,8 +27,9 @@ func usage() {
 
 usage:
   mpcloud                               interactive mode (prompts for everything)
-  mpcloud setup [--no-verify] 'mobilityprint://...'
-                                        check and save your organization's link
+  mpcloud setup [--no-verify] LINK      check and save your organization's link
+                                        (the mobilityprint:// link, the browser
+                                        address with ?token=..., or just the token)
   mpcloud printers [-json]              list printers
   mpcloud print -p PRINTER [options] FILE|-
       -duplex NO_DUPLEX|LONG_EDGE|SHORT_EDGE
@@ -153,9 +154,9 @@ func run(ctx context.Context, cmd string, args []string, verbose bool) error {
 	return nil
 }
 
-func setup(ctx context.Context, link string, verify bool) error {
-	link = cleanLink(link)
-	if _, _, err := parseLink(link); err != nil {
+func setup(ctx context.Context, input string, verify bool) error {
+	link, err := normalizeLink(input)
+	if err != nil {
 		return err
 	}
 	if verify {

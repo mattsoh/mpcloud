@@ -89,16 +89,17 @@ func askCredentials(cfg *config) (cloudprint.Credentials, error) {
 // promptLink asks for a mobilityprint:// link until the cloud service accepts
 // one, then saves it.
 func promptLink(ctx context.Context, cfg *config) error {
-	fmt.Println("Paste the mobilityprint:// link from your organization's Mobility Print")
-	fmt.Println("setup page (the link its \"open in app\" button points to).")
+	fmt.Println("To connect, mpcloud needs your organization's Mobility Print link.")
+	fmt.Println("Open the Cloud Print setup link your organization gave you, then copy")
+	fmt.Println("the address from your browser's address bar (it contains \"?token=\").")
+	fmt.Println("A mobilityprint:// link or just the token works too.")
 	for {
-		link := cleanLink(ask("Link", ""))
-		if _, _, err := parseLink(link); err != nil {
-			fmt.Println("  That doesn't look right:", err)
-			continue
+		link, err := normalizeLink(ask("\nPaste it here", ""))
+		if err == nil {
+			err = verifyLink(ctx, link)
 		}
-		if err := verifyLink(ctx, link); err != nil {
-			fmt.Println("  That link didn't work:", err)
+		if err != nil {
+			fmt.Println("  That didn't work:", err)
 			continue
 		}
 		if cfg.Link != link {
@@ -108,7 +109,7 @@ func promptLink(ctx context.Context, cfg *config) error {
 		if err := cfg.save(); err != nil {
 			return err
 		}
-		fmt.Println("  Link saved.")
+		fmt.Println("  Connected! Link saved.")
 		return nil
 	}
 }
