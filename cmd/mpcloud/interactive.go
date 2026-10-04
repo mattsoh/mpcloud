@@ -88,13 +88,25 @@ func askCredentials(cfg *config) (cloudprint.Credentials, error) {
 
 // promptLink asks for a mobilityprint:// link until the cloud service accepts
 // one, then saves it.
-func promptLink(ctx context.Context, cfg *config) error {
+// errSkipped is returned by promptLink when skipping is allowed and the user
+// pressed Enter without pasting anything.
+var errSkipped = errors.New("skipped")
+
+func promptLink(ctx context.Context, cfg *config, allowSkip bool) error {
 	fmt.Println("To connect, mpcloud needs your organization's Mobility Print link.")
 	fmt.Println("Open the Cloud Print setup link your organization gave you, then copy")
 	fmt.Println("the address from your browser's address bar (it contains \"?token=\").")
 	fmt.Println("A mobilityprint:// link or just the token works too.")
+	prompt := "\nPaste it here"
+	if allowSkip {
+		prompt += " (or press Enter to skip)"
+	}
 	for {
-		link, err := normalizeLink(ask("\nPaste it here", ""))
+		input := ask(prompt, "")
+		if input == "" && allowSkip {
+			return errSkipped
+		}
+		link, err := normalizeLink(input)
 		if err == nil {
 			err = verifyLink(ctx, link)
 		}
@@ -118,7 +130,7 @@ func interactive(ctx context.Context, verbose bool) error {
 	cfg, err := loadConfig()
 	if err == errNotConfigured {
 		cfg = &config{}
-		if err := promptLink(ctx, cfg); err != nil {
+		if err := promptLink(ctx, cfg, false); err != nil {
 			return err
 		}
 	} else if err != nil {
@@ -129,7 +141,7 @@ func interactive(ctx context.Context, verbose bool) error {
 	s, err := openSession(ctx, cfg, verbose)
 	for errors.Is(err, cloudprint.ErrInvalidLink) {
 		fmt.Println("\nYour saved link no longer works:", err)
-		if err := promptLink(ctx, cfg); err != nil {
+		if err := promptLink(ctx, cfg, false); err != nil {
 			return err
 		}
 		fmt.Println("Connecting to Mobility Print...")

@@ -155,21 +155,9 @@ elif [ -f "$CONFIG" ]; then
 elif [ "$HAVE_TTY" = 1 ]; then
 	echo
 	say "Connect to your organization's Mobility Print"
-	echo "Open the Cloud Print setup link your organization gave you, then copy the"
-	echo "address from your browser's address bar (it contains \"?token=\")."
-	echo "A mobilityprint:// link or just the token works too."
-	while :; do
-		echo
-		ask "Paste it here (or press Enter to skip): "
-		if [ -z "$REPLY" ]; then
-			echo "Skipped. You can paste it later by running: mpcloud"
-			break
-		fi
-		if "$MP" setup "$REPLY"; then
-			break
-		fi
-		echo "Please try again."
-	done
+	# mpcloud prints the instructions and checks the link itself, so they
+	# always match the version just installed.
+	"$MP" setup </dev/tty || true
 fi
 
 # Offer CUPS (lp and print dialogs) once there's a working link.

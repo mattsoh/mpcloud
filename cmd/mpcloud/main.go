@@ -27,7 +27,8 @@ func usage() {
 
 usage:
   mpcloud                               interactive mode (prompts for everything)
-  mpcloud setup [--no-verify] LINK      check and save your organization's link
+  mpcloud setup [--no-verify] [LINK]    check and save your organization's link
+                                        (asks for it if not given)
                                         (the mobilityprint:// link, the browser
                                         address with ?token=..., or just the token)
   mpcloud printers [-json]              list printers
@@ -85,10 +86,24 @@ func run(ctx context.Context, cmd string, args []string, verbose bool) error {
 		if len(args) == 2 && args[0] == "--no-verify" {
 			verify, args = false, args[1:]
 		}
-		if len(args) != 1 {
-			usage()
+		switch len(args) {
+		case 0:
+			// No link given: ask for one (used by the install script, so the
+			// instructions always match this binary).
+			cfg, err := loadConfig()
+			if err != nil {
+				cfg = &config{}
+			}
+			if err := promptLink(ctx, cfg, true); err == errSkipped {
+				fmt.Println("Skipped. Run `mpcloud` any time to connect.")
+			} else if err != nil {
+				return err
+			}
+			return nil
+		case 1:
+			return setup(ctx, args[0], verify)
 		}
-		return setup(ctx, args[0], verify)
+		usage()
 
 	case "logout":
 		cfg, err := loadConfig()
