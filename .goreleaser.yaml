@@ -1,0 +1,87 @@
+# GoReleaser config: builds Linux binaries, tarballs, .deb and .rpm packages.
+# Releases are cut by pushing a tag: git tag v0.1.0 && git push --tags
+version: 2
+project_name: mpcloud
+
+before:
+  hooks:
+    - go mod tidy
+    - go test ./...
+
+builds:
+  - id: mpcloud
+    main: ./cmd/mpcloud
+    binary: mpcloud
+    env:
+      - CGO_ENABLED=0
+    goos: [linux]
+    goarch: [amd64, arm64, arm]
+    goarm: ["7"]
+    flags: [-trimpath]
+    ldflags:
+      - -s -w -X main.version={{ .Version }}
+
+archives:
+  - id: tarball
+    formats: [tar.gz]
+    name_template: "mpcloud_{{ .Os }}_{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}"
+    files:
+      - README.md
+      - LICENSE
+      - packaging/mpcloud-handler.desktop
+
+checksum:
+  name_template: checksums.txt
+
+nfpms:
+  - id: packages
+    package_name: mpcloud
+    file_name_template: "{{ .PackageName }}_{{ .Version }}_{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}"
+    homepage: https://github.com/mattsoh/mpcloud
+    maintainer: mattsoh <mattsoh@users.noreply.github.com>
+    description: |-
+      Unofficial Linux client for PaperCut Mobility Print Cloud Print.
+      Print interactively, from scripts, or via CUPS (lp and print dialogs).
+    license: MIT
+    section: utils
+    formats: [deb, rpm]
+    bindir: /usr/bin
+    recommends:
+      - cups
+      - cups-filters
+    contents:
+      - src: /usr/bin/mpcloud
+        dst: /usr/bin/printer
+        type: symlink
+      - src: packaging/mpcloud-handler.desktop
+        dst: /usr/share/applications/mpcloud-handler.desktop
+        file_info:
+          mode: 0644
+      - src: LICENSE
+        dst: /usr/share/doc/mpcloud/copyright
+        file_info:
+          mode: 0644
+      - src: README.md
+        dst: /usr/share/doc/mpcloud/README.md
+        file_info:
+          mode: 0644
+    scripts:
+      postinstall: packaging/postinstall.sh
+      preremove: packaging/preremove.sh
+
+release:
+  github:
+    owner: mattsoh
+    name: mpcloud
+  footer: |
+    **Install:** `curl -fsSL https://raw.githubusercontent.com/mattsoh/mpcloud/main/scripts/install.sh | sh`
+    or download the `.deb` / `.rpm` for your architecture below.
+
+changelog:
+  use: github
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^ci:"

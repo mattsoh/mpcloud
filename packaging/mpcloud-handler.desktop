@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Mobility Print link handler (mpcloud)
+Comment=Set up mpcloud from a mobilityprint:// link
+Exec=sh -c 'mpcloud setup "$1"; echo; printf "Press Enter to close. "; read _' sh %u
+Terminal=true
+NoDisplay=true
+MimeType=x-scheme-handler/mobilityprint;
+Categories=Utility;
