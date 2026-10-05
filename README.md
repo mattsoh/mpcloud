@@ -23,9 +23,7 @@ optional).
 
 ## Install
 
-**Quick install:** downloads the latest release, checks its checksum, asks
-for your `mobilityprint://` link (and checks that it works), then offers to add
-the printers to your system print dialogs:
+**Quick install**
 
 ```sh
 curl -fsSL https://github.com/mattsoh/mpcloud/releases/latest/download/install.sh | sh
@@ -49,8 +47,6 @@ git clone https://github.com/mattsoh/mpcloud
 cd mpcloud
 make && sudo make install
 ```
-
-All methods install `mpcloud` plus a `printer` shortcut to it.
 
 ## Setup
 
