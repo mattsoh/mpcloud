@@ -19,8 +19,7 @@ optional).
 > This project is not affiliated with, endorsed by or supported by PaperCut
 > Software. "PaperCut" and "Mobility Print" are trademarks of their owners.
 > mpcloud talks to your organization's print service the same way the
-> official client does. Use it only with print services you're authorized to
-> use, and follow your organization's IT policies.
+> official client does.
 
 ## Install
 
