@@ -4,19 +4,18 @@
 #
 #   curl -fsSL https://github.com/mattsoh/mpcloud/releases/latest/download/install.sh | sh
 #
-# It asks for your mobilityprint:// link and whether to add the printers to
-# CUPS. Options (pass after `sh -s --` when piping):
+# It asks for your organization's link, then adds the printers to your
+# system's printing (CUPS, installed if needed) so they show up in every
+# app's Print dialog. Options (pass after `sh -s --` when piping):
 #   --link URL    use this link (browser address, mobilityprint:// link or token)
-#   --cups        add the printers to CUPS (installing CUPS if needed) without asking
-#   --no-cups     don't offer CUPS
+#   --no-cups     only install the `mpcloud` command, don't add system printers
 #   --user        install to ~/.local/bin instead of /usr/local/bin (no sudo)
 #   --version V   install a specific release tag instead of the latest
 #   --uninstall   remove mpcloud
 set -eu
 
 REPO="mattsoh/mpcloud"
-WITH_CUPS=0
-NO_CUPS=0
+WITH_CUPS=1
 LINK=""
 USER_INSTALL=0
 VERSION=""
@@ -24,14 +23,14 @@ UNINSTALL=0
 
 while [ $# -gt 0 ]; do
 	case "$1" in
-	--cups) WITH_CUPS=1 ;;
-	--no-cups) NO_CUPS=1 ;;
+	--cups) WITH_CUPS=1 ;; # the default; kept so old commands still work
+	--no-cups) WITH_CUPS=0 ;;
 	--link) LINK="$2"; shift ;;
 	--user) USER_INSTALL=1 ;;
 	--version) VERSION="$2"; shift ;;
 	--uninstall) UNINSTALL=1 ;;
 	-h | --help)
-		echo "usage: install.sh [--link URL] [--cups|--no-cups] [--user] [--version vX.Y.Z] [--uninstall]"
+		echo "usage: install.sh [--link URL] [--no-cups] [--user] [--version vX.Y.Z] [--uninstall]"
 		exit 0
 		;;
 	*) echo "unknown option: $1" >&2; exit 2 ;;
@@ -171,34 +170,33 @@ elif [ "$HAVE_TTY" = 1 ]; then
 	fi
 fi
 
-# Offer CUPS (lp and print dialogs) once there's a working link.
-if [ "$WITH_CUPS" = 0 ] && [ "$NO_CUPS" = 0 ] && [ "$HAVE_TTY" = 1 ] && [ -f "$CONFIG" ]; then
+# Add the printers to the system's printing (CUPS), like the official
+# Windows client does, so they appear in every app's Print dialog.
+ADDED_PRINTERS=0
+if [ "$WITH_CUPS" = 1 ] && [ ! -f "$CONFIG" ]; then
+	say "Not connected yet, so no printers were added. Run \`mpcloud\` to connect,"
+	say "then add them with: sudo $MP install-cups"
+elif [ "$WITH_CUPS" = 1 ]; then
 	echo
-	ask "Add the printers to your system print dialogs and lp (CUPS)? [y/N] "
-	case "$REPLY" in
-	[yY]*) WITH_CUPS=1 ;;
-	esac
-fi
-
-if [ "$WITH_CUPS" = 1 ]; then
+	say "Adding the printers to your system"
 	if ! command -v lpadmin >/dev/null 2>&1; then
-		say "Installing CUPS"
+		say "Installing CUPS (the standard Linux printing system)"
 		if command -v apt-get >/dev/null; then
-			sudo apt-get install -y cups cups-filters
+			sudo apt-get install -y cups cups-filters || true
 		elif command -v dnf >/dev/null; then
-			sudo dnf install -y cups cups-filters
+			sudo dnf install -y cups cups-filters || true
 		elif command -v pacman >/dev/null; then
-			sudo pacman -S --needed --noconfirm cups cups-filters
-			sudo systemctl enable --now cups.service
-		else
-			die "install CUPS with your package manager, then run: sudo $MP install-cups"
+			if sudo pacman -S --needed --noconfirm cups cups-filters; then
+				sudo systemctl enable --now cups.service || true
+			fi
 		fi
 	fi
-	if [ -f "$CONFIG" ]; then
-		say "Adding printers to CUPS"
-		sudo "$MP" install-cups
+	if ! command -v lpadmin >/dev/null 2>&1; then
+		say "Couldn't install CUPS. Install it with your package manager, then run: sudo $MP install-cups"
+	elif sudo "$MP" install-cups; then
+		ADDED_PRINTERS=1
 	else
-		say "CUPS is ready. After connecting (run \`mpcloud\`), run: sudo $MP install-cups"
+		say "Couldn't add the printers. Try again later with: sudo $MP install-cups"
 	fi
 fi
 
@@ -207,10 +205,11 @@ case ":$PATH:" in
 *) say "Note: $BIN_DIR is not on your PATH; add it or run $MP" ;;
 esac
 
-# Finish setup by signing in: PaperCut only confirms a login when a job is
-# sent, so this walks through printing something (a test page works).
+# With system printers, the Print dialog asks for the PaperCut login the
+# first time. Without them, sign in here: PaperCut only confirms a login when
+# a job is sent, so this walks through printing something (a test page works).
 SIGNED_IN=0
-if [ "$HAVE_TTY" = 1 ] && [ -f "$CONFIG" ] && ! grep -q '"rememberedToken"' "$CONFIG"; then
+if [ "$ADDED_PRINTERS" = 0 ] && [ "$HAVE_TTY" = 1 ] && [ -f "$CONFIG" ] && ! grep -q '"rememberedToken"' "$CONFIG"; then
 	echo
 	say "Sign in to PaperCut"
 	echo "Printing one document signs you in and saves your login, so printing from"
@@ -229,8 +228,10 @@ if [ -f "$CONFIG" ] && grep -q '"rememberedToken"' "$CONFIG"; then
 fi
 
 echo
-if [ "$SIGNED_IN" = 1 ]; then
-	say "All set! Print with \`mpcloud\`, or from any app if you added the printers to CUPS."
+if [ "$ADDED_PRINTERS" = 1 ]; then
+	say "All set! Press Ctrl+P in any app and pick one of the printers above."
+elif [ "$SIGNED_IN" = 1 ]; then
+	say "All set! Print with \`mpcloud\`."
 elif [ -f "$CONFIG" ]; then
 	say "Connected. Run \`mpcloud\` to sign in and print."
 else

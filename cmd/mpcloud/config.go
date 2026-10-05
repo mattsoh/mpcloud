@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 
 	"github.com/mattsoh/mpcloud/internal/cloudprint"
 )
@@ -21,14 +22,23 @@ type config struct {
 	RememberedToken string `json:"rememberedToken,omitempty"`
 }
 
-// systemConfigPath is the copy of the config used by the CUPS backend. It is
-// shared with the installing user so a fresh login from `mpcloud` reaches it.
+// systemConfigPath is the config used once the printers are in CUPS. It is
+// shared by the CUPS backend and the installing user, so a login saved by
+// either one works for both.
 const systemConfigPath = "/var/lib/mpcloud/config.json"
 
 func configPath() string {
 	if p := os.Getenv("MPCLOUD_CONFIG"); p != "" {
 		return p
 	}
+	if syscall.Access(systemConfigPath, 2 /* W_OK */) == nil {
+		return systemConfigPath
+	}
+	return userConfigPath()
+}
+
+// userConfigPath is where the config lives before the printers are in CUPS.
+func userConfigPath() string {
 	dir, err := os.UserConfigDir()
 	if err != nil {
 		dir = "."
@@ -59,18 +69,7 @@ func (c *config) save() error {
 		return err
 	}
 	b, _ := json.MarshalIndent(c, "", "  ")
-	if err := os.WriteFile(p, b, 0o600); err != nil {
-		return err
-	}
-	// Keep the CUPS backend's copy in sync when it is installed and writable,
-	// but only for the user's own config, never for an MPCLOUD_CONFIG override.
-	if os.Getenv("MPCLOUD_CONFIG") == "" {
-		if f, err := os.OpenFile(systemConfigPath, os.O_WRONLY|os.O_TRUNC, 0); err == nil {
-			f.Write(b)
-			f.Close()
-		}
-	}
-	return nil
+	return os.WriteFile(p, b, 0o600)
 }
 
 // defaultCloudHost is used when someone pastes just the token.

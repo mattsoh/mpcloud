@@ -4,11 +4,6 @@ package main
 // CUPS as:
 //
 //	mpcloud job-id user title copies options [file]
-//
-// with DEVICE_URI=mpcloud:/<url-escaped printer name>. Queues use a generic
-// PostScript PPD, so the job arrives as PostScript, which is what the
-// official Windows client sends too. Authentication uses the remember-me
-// token saved by an interactive `mpcloud` run, since CUPS can't prompt.
 
 import (
 	"context"
@@ -26,10 +21,19 @@ import (
 
 // CUPS backend exit codes.
 const (
-	backendOK     = 0
-	backendFailed = 1
-	backendRetry  = 6
+	backendOK           = 0
+	backendFailed       = 1
+	backendAuthRequired = 2
+	backendRetry        = 6
 )
+
+// askForLogin makes CUPS hold the job and ask the user for their PaperCut
+// login, then retry the job with it.
+func askForLogin(why string) int {
+	fmt.Fprintln(os.Stderr, "ATTR: auth-info-required=username,password")
+	fmt.Fprintln(os.Stderr, "INFO:", why)
+	return backendAuthRequired
+}
 
 func isBackend() bool {
 	return os.Getenv("DEVICE_URI") != "" || strings.Contains(os.Args[0], "/cups/backend/")
@@ -157,7 +161,14 @@ func backendMain() int {
 	defer cancel()
 	fmt.Fprintln(os.Stderr, "STATE: +connecting-to-device")
 	fmt.Fprintln(os.Stderr, "INFO: Connecting to Mobility Print")
+	// The connection sometimes fails once and works right after, so try a
+	// few times before handing the job back to CUPS.
 	s, err := openSession(ctx, cfg, false)
+	for wait := 5 * time.Second; err != nil && !errors.Is(err, cloudprint.ErrInvalidLink) && wait <= 20*time.Second; wait *= 2 {
+		fmt.Fprintf(os.Stderr, "INFO: Couldn't connect (%v), trying again in %v\n", err, wait)
+		time.Sleep(wait)
+		s, err = openSession(ctx, cfg, false)
+	}
 	if errors.Is(err, cloudprint.ErrInvalidLink) {
 		fmt.Fprintln(os.Stderr, "ERROR:", err, "- run `mpcloud` in a terminal and paste a new link")
 		return backendFailed
@@ -208,21 +219,33 @@ func backendMain() int {
 		media, _ = findMedia(p, "")
 	}
 
+	// A login typed into the print dialog, if CUPS asked for one.
+	creds := cloudprint.Credentials{Username: os.Getenv("AUTH_USERNAME"), Password: os.Getenv("AUTH_PASSWORD")}
+	if creds.Password == "" {
+		creds = cloudprint.Credentials{}
+	}
+	if p.RequiresAuth() && creds.Username == "" && cfg.RememberedToken == "" {
+		return askForLogin("Waiting for your PaperCut login. Run `mpcloud login` or print from an app")
+	}
+
 	details := s.newJob(p, jobSpec{
 		Title: title, Color: color, Duplex: duplex, Media: media,
 		Copies: copies, Pages: opts["page-ranges"], ContentType: guessType("", doc),
 	})
 	fmt.Fprintf(os.Stderr, "INFO: Sending %d KB to %s\n", (len(doc)+1023)/1024, p.Name)
-	if err := s.send(ctx, p, details, doc, cloudprint.Credentials{}); err != nil {
-		switch {
-		case p.RequiresAuth() && cfg.RememberedToken == "":
-			fmt.Fprintln(os.Stderr, "ERROR: Not signed in to PaperCut. Run `mpcloud` in a terminal and print once to save your login.")
-		case cloudprint.IsAuthError(err):
-			fmt.Fprintln(os.Stderr, "ERROR: PaperCut login expired. Run `mpcloud` in a terminal and print once to sign in again.")
-		default:
-			fmt.Fprintln(os.Stderr, "ERROR:", err)
+	if err := s.send(ctx, p, details, doc, creds); err != nil {
+		if p.RequiresAuth() && cloudprint.IsAuthError(err) {
+			if creds.Username != "" {
+				return askForLogin("Wrong PaperCut username or password. Run `mpcloud login` to try again")
+			}
+			return askForLogin("Your PaperCut login expired. Run `mpcloud login` or print from an app")
 		}
+		fmt.Fprintln(os.Stderr, "ERROR:", err)
 		return backendFailed
+	}
+	if p.RequiresAuth() {
+		// Signed in and the login is saved: stop asking for it.
+		fmt.Fprintln(os.Stderr, "ATTR: auth-info-required=none")
 	}
 	fmt.Fprintln(os.Stderr, "INFO: Sent to", p.Name)
 	return backendOK

@@ -80,7 +80,12 @@ func installCUPS(ctx context.Context) error {
 	lpUID, _ := strconv.Atoi(lp.Uid)
 	gid, _ := strconv.Atoi(u.Gid)
 
-	os.Setenv("MPCLOUD_CONFIG", filepath.Join(u.HomeDir, ".config", "mpcloud", "config.json"))
+	userConfig := filepath.Join(u.HomeDir, ".config", "mpcloud", "config.json")
+	if _, err := os.Stat(systemConfigPath); err == nil {
+		// Already installed: the shared copy has the newest login.
+		userConfig = systemConfigPath
+	}
+	os.Setenv("MPCLOUD_CONFIG", userConfig)
 	cfg, err := loadConfig()
 	if err != nil {
 		return fmt.Errorf("%w (as %s)", err, sudoUser)
@@ -138,6 +143,12 @@ func installCUPS(ctx context.Context) error {
 	var first string
 	for _, p := range s.printers {
 		q := queueName(p.Name)
+		// Queues that need a PaperCut login ask for it in the print dialog
+		// until one is saved; the backend switches this off after that.
+		auth := "none"
+		if p.RequiresAuth() && cfg.RememberedToken == "" {
+			auth = "username,password"
+		}
 		err := runCmd("lpadmin", "-p", q, "-E",
 			"-v", "mpcloud:/"+url.PathEscape(p.Name),
 			"-P", ppdPath,
@@ -145,6 +156,7 @@ func installCUPS(ctx context.Context) error {
 			"-L", "Mobility Print (cloud)",
 			"-o", "printer-error-policy=abort-job",
 			"-o", "printer-is-shared=false",
+			"-o", "auth-info-required="+auth,
 			"-o", "PageSize=A4")
 		if err != nil {
 			return err
@@ -159,10 +171,11 @@ func installCUPS(ctx context.Context) error {
 			fmt.Println("Default printer:", first)
 		}
 	}
-	fmt.Println("\nDone. Print with e.g.: lp -d", first, "file.pdf  (or Ctrl+P in any app)")
+	fmt.Println("\nDone. Press Ctrl+P in any app and pick one of these printers,")
+	fmt.Println("or from a terminal: lp -d", first, "file.pdf")
 	if cfg.RememberedToken == "" {
-		fmt.Println("\nNote: no saved PaperCut login yet. Run `mpcloud` once and print something;")
-		fmt.Println("after that, lp and print dialogs work without asking.")
+		fmt.Println("\nThe first time you print, you'll be asked for your PaperCut username")
+		fmt.Println("and password. After that, it remembers you.")
 	}
 	return nil
 }
@@ -183,6 +196,18 @@ func uninstallCUPS() error {
 			continue
 		}
 		fmt.Println("  removed", name)
+	}
+	// Hand the shared config (with the newest login) back to the user.
+	if b, err := os.ReadFile(systemConfigPath); err == nil {
+		if u, err := user.Lookup(os.Getenv("SUDO_USER")); err == nil && u.Username != "root" {
+			// install-cups read the user's config from here, so the folder exists.
+			p := filepath.Join(u.HomeDir, ".config", "mpcloud", "config.json")
+			uid, _ := strconv.Atoi(u.Uid)
+			gid, _ := strconv.Atoi(u.Gid)
+			if os.WriteFile(p, b, 0o600) == nil {
+				os.Chown(p, uid, gid)
+			}
+		}
 	}
 	for _, p := range []string{backendPath, ppdPath, systemConfigPath} {
 		if err := os.Remove(p); err == nil {

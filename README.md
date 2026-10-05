@@ -1,19 +1,14 @@
 # mpcloud
 
-An unofficial Linux client for **PaperCut Mobility Print Cloud Print**.
+Print to **PaperCut Mobility Print Cloud Print** from Linux. This is an unofficial client.
 
-If you have a `mobilityprint://mp.cloud.papercut.com?token=...` link, this tool
-fills that gap. You can print:
-
-- **interactively** with `mpcloud`, which asks for the printer, file, sides,
-  paper size and copies
-- **from scripts** with `mpcloud print -p "Printer name" file.pdf`
-- **from any app** through CUPS, using `lp`, Ctrl+P in GNOME/KDE, LibreOffice
-  or Firefox
-
-It runs on x86-64 (you might want to use [Wine](https://www.winehq.org/) with the official installer though),
-ARM64, and ARMv7. It's a single static binary with no runtime dependencies (CUPS is
-optional).
+- Use this if you have a Mobility Print
+  link (`mobilityprint://mp.cloud.papercut.com?token=...`).
+- Your organization's printers show up as normal printers.
+  Print with **Ctrl+P** in any app.
+- Runs on x86-64, ARM64 and ARMv7. It's a single file with nothing else
+  to install. On x86-64 you could also run the official Windows installer
+  with [Wine](https://www.winehq.org/).
 
 > [!IMPORTANT]
 > This project is not affiliated with, endorsed by or supported by PaperCut
@@ -23,18 +18,44 @@ optional).
 
 ## Install
 
-**Quick install**
+Run this in a terminal:
 
 ```sh
 curl -fsSL https://github.com/mattsoh/mpcloud/releases/latest/download/install.sh | sh
 ```
 
-To skip the questions, pass options after `-s --`, for example
-`sh -s -- --link 'https://mp.cloud.papercut.com/?token=…' --cups`. Add `--user` to install into
-`~/.local/bin` without sudo.
+It will:
 
-**Debian / Ubuntu / Fedora packages:** download the `.deb` or `.rpm` for your
-architecture from the [latest release](https://github.com/mattsoh/mpcloud/releases/latest), then:
+1. Ask for your link. Open the link your organization gave you, then copy
+   the address from your browser's address bar. It looks like
+   `https://mp.cloud.papercut.com/?token=eyJ…`.
+2. Install CUPS (Linux's standard printing system) if you don't have it.
+3. Add your organization's printers.
+
+That's it. Go to [Printing](#printing).
+
+<details>
+<summary>Installer options</summary>
+
+Put options after `sh -s --`, for example:
+
+```sh
+curl -fsSL https://github.com/mattsoh/mpcloud/releases/latest/download/install.sh | sh -s -- --link 'https://mp.cloud.papercut.com/?token=…'
+```
+
+- `--link URL`: use this link instead of asking for it
+- `--no-cups`: only install the `mpcloud` command, don't add printers
+- `--user`: install into `~/.local/bin` without sudo
+- `--version vX.Y.Z`: install a specific release
+- `--uninstall`: remove mpcloud
+
+</details>
+
+<details>
+<summary>Other ways to install (.deb, .rpm, from source)</summary>
+
+**Debian / Ubuntu / Fedora:** download the `.deb` or `.rpm` for your
+computer from the [latest release](https://github.com/mattsoh/mpcloud/releases/latest), then:
 
 ```sh
 sudo apt install ./mpcloud_*_arm64.deb   # or: sudo dnf install ./mpcloud_*.rpm
@@ -48,178 +69,166 @@ cd mpcloud
 make && sudo make install
 ```
 
-## Setup
-
-If you used the quick installer, you've already done step 1.
-
-1. **Connect.** Open the Cloud Print setup link your organization gave you,
-   then copy the address from your browser's address bar. It looks like
-   `https://mp.cloud.papercut.com/?token=eyJ…`. Run `mpcloud` and paste it
-   when asked:
-
-   ```sh
-   mpcloud
-   ```
-
-   Any of these can be pasted:
-
-   | What you have | Example |
-   | --- | --- |
-   | The browser address | `https://mp.cloud.papercut.com/?token=eyJ…` |
-   | The app link | `mobilityprint://mp.cloud.papercut.com?token=eyJ…` |
-   | Just the token | `eyJ…` |
-
-   mpcloud checks it with the server before saving it. If it ever stops
-   working, for example because it expired or your organization issued a new
-   one, mpcloud tells you and asks for a new one. In scripts, use
-   `mpcloud setup 'https://mp.cloud.papercut.com/?token=…'`.
-
-2. **Print once interactively.** This signs you in:
-
-   ```sh
-   mpcloud
-   ```
-
-   Pick a printer, sign in with your PaperCut username and password (often
-   your network username without `@domain`), choose a file and confirm. The
-   server returns a "remember me" token, which mpcloud saves so you don't
-   have to sign in again.
-
-3. **Optional: use normal Linux printing.**
-
-   ```sh
-   sudo apt install cups cups-filters    # if CUPS isn't installed
-   sudo mpcloud install-cups
-   ```
-
-   Each Mobility Print queue becomes a CUPS printer, for example
-   `Office-Printer` or `Color-Printer`:
-
-   ```sh
-   lp -d Office-Printer document.pdf
-   lp -d Color-Printer -o sides=two-sided-long-edge -o media=A4 poster.pdf
-   ```
-
-   The printers also appear in every app's print dialog. CUPS jobs use your
-   saved login, so do step 2 first.
-
-## Print from your phone and other devices (Tailscale + AirPrint)
-
-If you use [Tailscale](https://tailscale.com), the machine running mpcloud can
-share its printers with all your devices, including iPhones and iPads via
-AirPrint, wherever they are:
+Then set it up yourself:
 
 ```sh
-sudo mpcloud share
+mpcloud setup                     # paste your link when asked
+sudo apt install cups cups-filters  # if you don't have CUPS
+sudo mpcloud install-cups         # add the printers
 ```
 
-This:
+`mpcloud setup` accepts any of these:
 
-- opens CUPS to **Tailscale addresses only** (`100.64.0.0/10`,
-  `fd7a:115c:a1e0::/48`), so other people on your Wi-Fi can't print on your
-  account
-- shares the mpcloud printers, and opens port 631 on `tailscale0` if ufw is on
-- writes `~/mpcloud-airprint.mobileconfig`, an AirPrint profile pointing at
-  this machine's Tailscale IP
+- the browser address: `https://mp.cloud.papercut.com/?token=eyJ…`
+- the app link: `mobilityprint://mp.cloud.papercut.com?token=eyJ…`
+- just the token: `eyJ…`
 
-AirPrint normally finds printers with Bonjour, which doesn't work over
-Tailscale. The profile tells your devices where the printers are instead:
+</details>
 
-- **iPhone / iPad:** send the profile with Taildrop
-  (`tailscale file cp ~/mpcloud-airprint.mobileconfig my-iphone:`), open it
-  from the Files app, then install it in Settings. The printers then show up
-  in every Print menu while Tailscale is connected.
-- **Mac:** double-click the profile and install it in System Settings, or add
-  an IP printer: your Tailscale IP, protocol IPP, queue `printers/<name>`.
-- **Windows / Linux:** add a printer by URL:
-  `http://<tailscale-ip>:631/printers/<name>`.
+## Printing
 
-Jobs from your devices go through the machine running mpcloud and use its
-PaperCut login, so that machine has to be on and connected. To stop sharing,
-run `sudo mpcloud unshare`.
+**From any app**
 
-## Usage
+- Press **Ctrl+P** and pick one of the printers, for example `Office-Printer`.
+- **The first time**, a window asks for your PaperCut username and password.
+- After that it remembers you until the login expires.
 
-```
-mpcloud                               interactive mode
-mpcloud setup LINK                    check and save your organization's link
-mpcloud printers [-json]              list printers and their capabilities
-mpcloud print -p PRINTER [options] FILE|-
-    -duplex NO_DUPLEX|LONG_EDGE|SHORT_EDGE
-    -color  STANDARD_MONOCHROME|STANDARD_COLOR   (default: from queue name)
-    -media  NAME                                 (default: A4, e.g. NA_LETTER)
-    -copies N   -pages RANGE   -title TITLE   -type MIME
-    -user USER  (password from $MPCLOUD_PASSWORD or prompted)
-mpcloud logout                        forget the saved login
-mpcloud info                          show server version and sign-in options
-sudo mpcloud install-cups             add printers to CUPS
-sudo mpcloud uninstall-cups           remove them
-sudo mpcloud share / unshare          share printers over Tailscale (AirPrint)
-mpcloud airprint-profile              re-create the AirPrint profile
+**From a terminal**
+
+```sh
+lp -d Office-Printer document.pdf
+lp -d Color-Printer -o sides=two-sided-long-edge -o media=A4 poster.pdf
 ```
 
-Add `-v` before any command for a full protocol log, for example
-`mpcloud -v printers`.
+- The first time, the job waits for your PaperCut login. Run
+  `mpcloud login` and type your username and password, and the job prints.
 
-PDF works everywhere. Through CUPS, any format CUPS understands (images, text
-and office documents via apps) is converted to PostScript first.
+**Without CUPS**
 
-**Color** is chosen from the queue name: queues with "mono" in the name print
-black and white, and all others print color. Override it with `-color`, or
-pick Grayscale in a print dialog.
+- Run `mpcloud`. It asks for the printer, the file (or a test page), sides,
+  paper size and copies, and signs you in.
+- In scripts: `mpcloud print -p "Printer name" file.pdf`.
 
-## How it works
+**Good to know**
 
-The official client is a Go program. It never talks to printers directly:
-
-1. It exchanges the token from your link for a session at
-   `mp.cloud.papercut.com` and uses that service to set up a **WebRTC**
-   connection to your organization's on-site Mobility Print server, relayed
-   if needed.
-2. It talks to that server over WebRTC data channels: it trades the link
-   token for a print token, lists printers, then sends job details (including
-   your credentials) followed by the document.
-
-mpcloud reimplements that protocol with [Pion](https://github.com/pion/webrtc).
-The details are in [docs/PROTOCOL.md](docs/PROTOCOL.md).
-
-## Files and privacy
-
-| Path | Contents |
-| --- | --- |
-| `~/.config/mpcloud/config.json` | your link, username and remember-me token (mode 0600) |
-| `/var/lib/mpcloud/config.json` | copy used by CUPS (owned by `lp`, readable by your group), only after `install-cups` |
-| `/usr/lib/cups/backend/mpcloud` | CUPS backend, only after `install-cups` |
-
-Your password is never written to disk. It's sent only to your organization's
-Mobility Print server, over the encrypted WebRTC channel. Anyone who can read
-the config files can print as you until the token expires. `mpcloud logout`
-clears the token.
+- **Color:** printers with "mono" in their name print black and white.
+  Others print in color. To print in gray, pick Grayscale in the print dialog
+  or use `-color STANDARD_MONOCHROME`.
+- **File types:** PDF always works. Through CUPS, anything an app can print
+  works.
+- **Nothing came out?** Many organizations hold jobs until you release them
+  at the printer or on the PaperCut website.
 
 ## Troubleshooting
 
-- **`user and password authentication failed`**: try your username without
-  `@domain`, or with it if you left it off. Some organizations allow only
-  Google sign-in, which mpcloud doesn't support yet. `mpcloud info` shows
-  which sign-in methods your server allows.
-- **`the Cloud Print link is invalid or has expired`**: get a fresh link from
-  your organization and run `mpcloud`, which asks for it.
-- **`timed out waiting for the Mobility Print server to answer`**: your
-  organization's server is offline or unreachable. Try again later.
-- **CUPS job fails with "login expired"**: run `mpcloud` and print once to
-  refresh the saved login.
-- **Job sent but nothing prints**: many organizations hold jobs until you
-  release them at the printer or in the PaperCut web portal.
-- CUPS logs: `journalctl -u cups` or `/var/log/cups/error_log`.
+| You see | What to do |
+| --- | --- |
+| `user and password authentication failed` | Try your username without `@domain`, or with it. Some organizations only allow Google sign-in, which mpcloud doesn't support yet. `mpcloud info` shows which sign-in methods your organization allows. |
+| `the Cloud Print link is invalid or has expired` | Get a new link from your organization, run `mpcloud` and paste it. |
+| `timed out waiting for the Mobility Print server to answer` | Your organization's print server is offline. Try again later. |
+| A job is stuck "held for authentication" | Your login is missing or expired. Run `mpcloud login`. |
+| A job is stuck with "unable to connect to Mobility Print" | Your organization's print server couldn't be reached (mpcloud already tried a few times). Send it again with `lp -i JOB-ID -H resume`, or remove it with `cancel JOB-ID`. `lpstat -o` shows the job IDs. |
+| Job sent, but nothing printed | Release it at the printer or on the PaperCut website. |
+
+- **More detail:** add `-v` to any command, for example `mpcloud -v printers`.
+- **CUPS logs:** `journalctl -u cups` or `/var/log/cups/error_log`.
+
+## Print from your phone and other devices (Tailscale + AirPrint)
+
+If you use [Tailscale](https://tailscale.com), the computer running mpcloud
+can share its printers with your other devices, including iPhones and iPads,
+wherever they are.
+
+```sh
+sudo mpcloud share     # start sharing
+sudo mpcloud unshare   # stop sharing
+```
+
+`share` does three things:
+
+- Opens the printers to **your Tailscale devices only** (`100.64.0.0/10`,
+  `fd7a:115c:a1e0::/48`). Other people on your Wi-Fi can't print on your
+  account.
+- Opens port 631 on `tailscale0` if the ufw firewall is on.
+- Writes `~/mpcloud-airprint.mobileconfig`, a profile that tells Apple
+  devices where the printers are.
+
+Then add the printers on each device:
+
+- **iPhone / iPad:** send the profile with
+  `tailscale file cp ~/mpcloud-airprint.mobileconfig my-iphone:`. Open it in
+  the Files app, then install it in Settings.
+- **Mac:** double-click the profile and install it in System Settings. Or
+  add an IP printer: your Tailscale IP, protocol IPP, queue `printers/<name>`.
+- **Windows / Linux:** add a printer by URL:
+  `http://<tailscale-ip>:631/printers/<name>`.
+
+Keep in mind:
+
+- Jobs go through the computer running mpcloud, so it has to be on.
+- Jobs use that computer's PaperCut login.
+- Run `mpcloud airprint-profile` to make a new profile if its IP changes.
+
+## All commands
+
+```
+mpcloud                               print interactively
+mpcloud setup [LINK]                  save your organization's link
+mpcloud printers [-json]              list printers and what they support
+mpcloud print -p PRINTER [options] FILE|-
+    -duplex NO_DUPLEX|LONG_EDGE|SHORT_EDGE
+    -color  STANDARD_MONOCHROME|STANDARD_COLOR   (default: from printer name)
+    -media  NAME                                 (default: A4, e.g. NA_LETTER)
+    -copies N   -pages RANGE   -title TITLE   -type MIME
+    -user USER  (password from $MPCLOUD_PASSWORD or prompted)
+mpcloud login                         sign in for jobs waiting for your login
+mpcloud logout                        forget your saved login (everywhere)
+mpcloud info                          show server version and sign-in options
+sudo mpcloud install-cups             add the printers to your system
+sudo mpcloud uninstall-cups           remove them
+sudo mpcloud share / unshare          share printers over Tailscale (AirPrint)
+mpcloud airprint-profile              make a new AirPrint profile
+```
+
+## Your data
+
+- **Where it's stored:**
+  - Before adding printers: `~/.config/mpcloud/config.json` (only you can
+    read it).
+  - After `sudo mpcloud install-cups`: `/var/lib/mpcloud/config.json`, shared
+    by `mpcloud` and the printers. It's owned by `lp` and readable by your
+    group.
+  - The printer driver goes in `/usr/lib/cups/backend/mpcloud`.
+- **What's stored:** your link, username and a "remember me" login.
+- **Your password is never saved.** It's sent only to your organization's
+  print server, over an encrypted connection.
+- Anyone who can read the config file can print as you until the login
+  expires. `mpcloud logout` removes the saved login, for both `mpcloud` and
+  the printers.
 
 ## Uninstall
 
 ```sh
-sudo mpcloud uninstall-cups        # if you added printers to CUPS
-sudo apt remove mpcloud            # package install
-# or: curl -fsSL https://github.com/mattsoh/mpcloud/releases/latest/download/install.sh | sh -s -- --uninstall
-rm -rf ~/.config/mpcloud           # forget your link and login
+sudo mpcloud uninstall-cups        # remove the printers
+sudo apt remove mpcloud            # if you installed a package
+# or, if you used the quick installer:
+curl -fsSL https://github.com/mattsoh/mpcloud/releases/latest/download/install.sh | sh -s -- --uninstall
+rm -rf ~/.config/mpcloud           # forget your link and login (after the steps above)
 ```
+
+## How it works
+
+mpcloud does what the official client does. Neither one talks to printers
+directly:
+
+1. The token in your link opens a session at `mp.cloud.papercut.com`.
+2. That service sets up a **WebRTC** connection to your organization's own
+   Mobility Print server (relayed if needed).
+3. Over that connection, mpcloud gets the printer list, then sends the job
+   details (including your login) and the document.
+
+mpcloud is written in Go and uses [Pion](https://github.com/pion/webrtc) for
+WebRTC. The protocol is documented in [docs/PROTOCOL.md](docs/PROTOCOL.md).
 
 ## License
 

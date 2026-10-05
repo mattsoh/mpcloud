@@ -38,6 +38,8 @@ usage:
       -media  NAME                                 (default: A4; e.g. NA_LETTER)
       -copies N   -pages RANGE   -title TITLE   -type MIME
       -user USER  (password from $MPCLOUD_PASSWORD or prompted)
+  mpcloud login                         sign in for print jobs waiting for
+                                        your PaperCut login (e.g. from lp)
   mpcloud logout                        forget the saved PaperCut login
   mpcloud info                          show Mobility Print server info
   sudo mpcloud install-cups             add the printers to CUPS (lp, print dialogs)
@@ -109,17 +111,11 @@ func run(ctx context.Context, cmd string, args []string, verbose bool) error {
 		}
 		usage()
 
+	case "login":
+		return login(ctx)
+
 	case "logout":
-		cfg, err := loadConfig()
-		if err != nil {
-			return err
-		}
-		cfg.RememberedToken = ""
-		if err := cfg.save(); err != nil {
-			return err
-		}
-		fmt.Println("Forgot the saved PaperCut login.")
-		return nil
+		return logout()
 
 	case "install-cups":
 		return installCUPS(ctx)
