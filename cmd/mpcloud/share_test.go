@@ -22,7 +22,9 @@ Browsing No
 func TestShareCupsdConf(t *testing.T) {
 	confs := []string{sampleConf}
 	if b, err := os.ReadFile(cupsdConf); err == nil {
-		confs = append(confs, string(b)) // also check this machine's real config
+		// Also check this machine's real config, as it is before sharing
+		// (it may be shared right now).
+		confs = append(confs, unshareCupsdConf(string(b)))
 	}
 	for _, conf := range confs {
 		shared := shareCupsdConf(conf)

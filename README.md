@@ -110,10 +110,6 @@ lp -d Color-Printer -o sides=two-sided-long-edge -o media=A4 poster.pdf
 - In scripts: `mpcloud print -p "Printer name" file.pdf`.
 
 **Good to know**
-
-- **Color:** printers with "mono" in their name print black and white.
-  Others print in color. To print in gray, pick Grayscale in the print dialog
-  or use `-color STANDARD_MONOCHROME`.
 - **File types:** PDF always works. Through CUPS, anything an app can print
   works.
 - **Nothing came out?** Many organizations hold jobs until you release them
