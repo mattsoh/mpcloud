@@ -6,6 +6,8 @@
 *LanguageVersion: English
 *LanguageEncoding: ISOLatin1
 *PCFileName: "MPCLOUD.PPD"
+*% Send PDF: many printers behind Mobility Print print PostScript as text.
+*cupsFilter: "application/vnd.cups-pdf 0 -"
 *Manufacturer: "Generic"
 *Product: "(PaperCut Mobility Print)"
 *ModelName: "PaperCut Mobility Print"
