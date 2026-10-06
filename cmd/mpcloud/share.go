@@ -11,6 +11,10 @@ package main
 // name from printer-dns-sd-name, which CUPS only fills in for printers it
 // announces. The local network sees them too, but only localhost and
 // Tailscale peers are let in.
+//
+// Devices offer the paper sizes CUPS reports as loaded first. CUPS picks
+// those from the locale, and a C locale means US sizes only, so `share`
+// lists A4 first and keeps Letter for US users.
 
 import (
 	"bytes"
@@ -48,7 +52,8 @@ func shareCupsdConf(conf string) string {
 		trimmed := strings.TrimSpace(line)
 		switch {
 		case strings.HasPrefix(trimmed, "Listen ") && strings.HasSuffix(trimmed, ":631") && !strings.HasPrefix(trimmed, "Listen /"),
-			strings.HasPrefix(trimmed, "Browsing "), strings.HasPrefix(trimmed, "BrowseLocalProtocols "):
+			strings.HasPrefix(trimmed, "Browsing "), strings.HasPrefix(trimmed, "BrowseLocalProtocols "),
+			strings.HasPrefix(trimmed, "ReadyPaperSizes "):
 			// Replaced by the block below; restored by unshare.
 			out = append(out, listenMarker+line)
 			continue
@@ -64,7 +69,8 @@ func shareCupsdConf(conf string) string {
 		}
 		out = append(out, line)
 	}
-	block := []string{beginMarker, "Port 631", "ServerAlias *", "Browsing Yes", "BrowseLocalProtocols dnssd", endMarker}
+	block := []string{beginMarker, "Port 631", "ServerAlias *", "Browsing Yes", "BrowseLocalProtocols dnssd",
+		"ReadyPaperSizes A4,A3,A5,Letter,Legal,EnvDL", endMarker}
 	return strings.Join(append(block, out...), "\n")
 }
 
