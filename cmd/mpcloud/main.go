@@ -48,6 +48,7 @@ usage:
                                         over Tailscale (incl. AirPrint profile)
   sudo mpcloud unshare                  stop sharing
   mpcloud airprint-profile              re-create the iPhone/iPad/Mac profile
+  mpcloud update [--check]              update to the latest release
   mpcloud version
 
 global flags: -v  verbose protocol logging
@@ -68,6 +69,7 @@ func main() {
 	defer cancel()
 	var err error
 	if len(args) == 0 {
+		notifyUpdate()
 		err = interactive(ctx, verbose)
 	} else {
 		err = run(ctx, args[0], args[1:], verbose)
@@ -86,6 +88,9 @@ func run(ctx context.Context, cmd string, args []string, verbose bool) error {
 	case "version", "--version":
 		fmt.Println("mpcloud", version)
 		return nil
+
+	case "update":
+		return update(ctx, args)
 
 	case "setup":
 		verify := true

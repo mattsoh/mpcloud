@@ -9,6 +9,7 @@
 # app's Print dialog. Options (pass after `sh -s --` when piping):
 #   --link URL    use this link (browser address, mobilityprint:// link or token)
 #   --no-cups     only install the `mpcloud` command, don't add system printers
+#   --no-auto-update  don't install the daily update timer
 #   --user        install to ~/.local/bin instead of /usr/local/bin (no sudo)
 #   --version V   install a specific release tag instead of the latest
 #   --uninstall   remove mpcloud
@@ -16,6 +17,7 @@ set -eu
 
 REPO="mattsoh/mpcloud"
 WITH_CUPS=1
+AUTO_UPDATE=1
 LINK=""
 USER_INSTALL=0
 VERSION=""
@@ -25,12 +27,13 @@ while [ $# -gt 0 ]; do
 	case "$1" in
 	--cups) WITH_CUPS=1 ;; # the default; kept so old commands still work
 	--no-cups) WITH_CUPS=0 ;;
+	--no-auto-update) AUTO_UPDATE=0 ;;
 	--link) LINK="$2"; shift ;;
 	--user) USER_INSTALL=1 ;;
 	--version) VERSION="$2"; shift ;;
 	--uninstall) UNINSTALL=1 ;;
 	-h | --help)
-		echo "usage: install.sh [--link URL] [--no-cups] [--user] [--version vX.Y.Z] [--uninstall]"
+		echo "usage: install.sh [--link URL] [--no-cups] [--no-auto-update] [--user] [--version vX.Y.Z] [--uninstall]"
 		exit 0
 		;;
 	*) echo "unknown option: $1" >&2; exit 2 ;;
@@ -59,6 +62,11 @@ APP_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/applications"
 if [ "$UNINSTALL" = 1 ]; then
 	if command -v lpadmin >/dev/null 2>&1 && [ -x "$BIN_DIR/mpcloud" ]; then
 		sudo "$BIN_DIR/mpcloud" uninstall-cups || true
+	fi
+	if [ -f /etc/systemd/system/mpcloud-update.timer ]; then
+		sudo systemctl disable --now mpcloud-update.timer 2>/dev/null || true
+		sudo rm -f /etc/systemd/system/mpcloud-update.timer /etc/systemd/system/mpcloud-update.service
+		sudo systemctl daemon-reload 2>/dev/null || true
 	fi
 	$SUDO rm -f "$BIN_DIR/mpcloud"
 	if [ -L "$BIN_DIR/printer" ]; then
@@ -134,6 +142,36 @@ fi
 
 MP="$BIN_DIR/mpcloud"
 "$MP" version
+
+# Daily automatic updates (system-wide installs with systemd only; --user
+# installs get a notice from mpcloud when an update is out).
+if [ "$AUTO_UPDATE" = 1 ] && [ "$USER_INSTALL" = 0 ] && [ -d /run/systemd/system ]; then
+	$SUDO tee /etc/systemd/system/mpcloud-update.service >/dev/null <<UNIT
+[Unit]
+Description=Update mpcloud to the latest release
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=$MP update --quiet
+UNIT
+	$SUDO tee /etc/systemd/system/mpcloud-update.timer >/dev/null <<'UNIT'
+[Unit]
+Description=Check for mpcloud updates daily
+
+[Timer]
+OnCalendar=daily
+RandomizedDelaySec=6h
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+UNIT
+	if $SUDO systemctl daemon-reload && $SUDO systemctl enable --now mpcloud-update.timer >/dev/null 2>&1; then
+		say "Automatic updates on (daily; turn off with: sudo systemctl disable --now mpcloud-update.timer)"
+	fi
+fi
 CONFIG="${XDG_CONFIG_HOME:-$HOME/.config}/mpcloud/config.json"
 
 # Prompts read from the terminal: when piped from curl, stdin is this script.

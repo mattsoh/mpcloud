@@ -77,6 +77,12 @@ sudo apt install cups cups-filters  # if you don't have CUPS
 sudo mpcloud install-cups         # add the printers
 ```
 
+**Updates:** the quick installer sets up a daily systemd timer that runs
+`mpcloud update` (opt out with `--no-auto-update`). You can also update by hand
+with `sudo mpcloud update`, or check with `mpcloud update --check`. `mpcloud`
+also tells you when a new version is out. Package installs update through
+apt or dnf with the new `.deb` or `.rpm`.
+
 `mpcloud setup` accepts any of these:
 
 - the browser address: `https://mp.cloud.papercut.com/?token=eyJ…`
@@ -177,6 +183,7 @@ mpcloud print -p PRINTER [options] FILE|-
     -media  NAME                                 (default: A4, e.g. NA_LETTER)
     -copies N   -pages RANGE   -title TITLE   -type MIME
     -user USER  (password from $MPCLOUD_PASSWORD or prompted)
+mpcloud update [--check]              update to the latest release
 mpcloud login                         sign in for jobs waiting for your login
 mpcloud logout                        forget your saved login (everywhere)
 mpcloud info                          show server version and sign-in options

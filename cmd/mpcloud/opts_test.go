@@ -66,3 +66,23 @@ func TestQueuePPDName(t *testing.T) {
 		t.Error("PPD still names the generic model")
 	}
 }
+
+func TestNewerVersion(t *testing.T) {
+	cases := []struct {
+		a, b string
+		want bool
+	}{
+		{"0.3.1", "v0.4.0", true},
+		{"0.4.0", "v0.4.0", false},
+		{"0.10.0", "v0.9.9", false},
+		{"0.4.0-SNAPSHOT-abc", "v0.4.0", false},
+		{"0.4.0", "v1.0.0", true},
+		{"dev", "v9.9.9", false},
+		{"6fd69a3-dirty", "v0.4.0", false},
+	}
+	for _, c := range cases {
+		if got := newerVersion(c.a, c.b); got != c.want {
+			t.Errorf("newerVersion(%q, %q) = %t, want %t", c.a, c.b, got, c.want)
+		}
+	}
+}
