@@ -42,6 +42,54 @@ func queueName(printer string) string {
 	return strings.Trim(n, "-")
 }
 
+// displayName is the name people see for a printer: its Mobility Print
+// name without the "Mobility Queue" suffix.
+func displayName(printer string) string {
+	n := strings.TrimSpace(strings.TrimSuffix(strings.TrimSpace(printer), "Mobility Queue"))
+	if n == "" {
+		return strings.TrimSpace(printer)
+	}
+	return n
+}
+
+// queuePPD returns the PPD with the printer's name as its model, so CUPS
+// reports it as printer-make-and-model. Devices that find printers by
+// address (the AirPrint profile) show that instead of the queue's
+// description, so without this every queue would be "Mobility Print Cloud".
+func queuePPD(printer string) []byte {
+	name := strings.Map(func(r rune) rune {
+		switch {
+		case r == '"' || r == '(' || r == ')' || r == '\\':
+			return -1
+		case r < 0x20 || r > 0x7e: // PPD strings are ISOLatin1; keep it ASCII
+			return -1
+		}
+		return r
+	}, displayName(printer))
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return ppd
+	}
+	short := name
+	if len(short) > 31 { // PPD limit for ShortNickName
+		short = strings.TrimSpace(short[:31])
+	}
+	lines := strings.Split(string(ppd), "\n")
+	for i, l := range lines {
+		switch {
+		case strings.HasPrefix(l, "*Product:"):
+			lines[i] = `*Product: "(` + name + `)"`
+		case strings.HasPrefix(l, "*ModelName:"):
+			lines[i] = `*ModelName: "` + name + `"`
+		case strings.HasPrefix(l, "*ShortNickName:"):
+			lines[i] = `*ShortNickName: "` + short + `"`
+		case strings.HasPrefix(l, "*NickName:"):
+			lines[i] = `*NickName: "` + name + `"`
+		}
+	}
+	return []byte(strings.Join(lines, "\n"))
+}
+
 func runCmd(name string, args ...string) error {
 	out, err := exec.Command(name, args...).CombinedOutput()
 	if err != nil {
@@ -140,9 +188,18 @@ func installCUPS(ctx context.Context) error {
 		return err
 	}
 	defer s.close()
+	tmp, err := os.MkdirTemp("", "mpcloud-ppd")
+	if err != nil {
+		return err
+	}
+	defer os.RemoveAll(tmp)
 	var first string
 	for _, p := range s.printers {
 		q := queueName(p.Name)
+		qppd := filepath.Join(tmp, q+".ppd")
+		if err := os.WriteFile(qppd, queuePPD(p.Name), 0o644); err != nil {
+			return err
+		}
 		// Queues that need a PaperCut login ask for it in the print dialog
 		// until one is saved; the backend switches this off after that.
 		auth := "none"
@@ -151,7 +208,7 @@ func installCUPS(ctx context.Context) error {
 		}
 		err := runCmd("lpadmin", "-p", q, "-E",
 			"-v", "mpcloud:/"+url.PathEscape(p.Name),
-			"-P", ppdPath,
+			"-P", qppd,
 			"-D", p.Name,
 			"-L", "Mobility Print (cloud)",
 			"-o", "printer-error-policy=abort-job",
