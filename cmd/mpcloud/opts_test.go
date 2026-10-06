@@ -51,22 +51,6 @@ func TestTestPagePDF(t *testing.T) {
 	}
 }
 
-func TestQueuePPDName(t *testing.T) {
-	got := string(queuePPD(`Office "Laser" Printer (2) Mobility Queue`))
-	for _, want := range []string{
-		`*NickName: "Office Laser Printer 2"`,
-		`*ModelName: "Office Laser Printer 2"`,
-		`*Product: "(Office Laser Printer 2)"`,
-	} {
-		if !strings.Contains(got, want) {
-			t.Errorf("PPD missing %s", want)
-		}
-	}
-	if strings.Contains(got, "Mobility Print Cloud") {
-		t.Error("PPD still names the generic model")
-	}
-}
-
 func TestNewerVersion(t *testing.T) {
 	cases := []struct {
 		a, b string

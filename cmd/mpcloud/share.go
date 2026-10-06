@@ -6,6 +6,11 @@ package main
 // but printing itself is plain IPP. So `share` opens CUPS to Tailscale
 // addresses only and writes an Apple configuration profile that tells
 // iPhones, iPads and Macs where the printers are.
+//
+// It also turns on CUPS's Bonjour announcements: devices take a printer's
+// name from printer-dns-sd-name, which CUPS only fills in for printers it
+// announces. The local network sees them too, but only localhost and
+// Tailscale peers are let in.
 
 import (
 	"bytes"
@@ -42,8 +47,9 @@ func shareCupsdConf(conf string) string {
 	for _, line := range strings.Split(conf, "\n") {
 		trimmed := strings.TrimSpace(line)
 		switch {
-		case strings.HasPrefix(trimmed, "Listen ") && strings.HasSuffix(trimmed, ":631") && !strings.HasPrefix(trimmed, "Listen /"):
-			// Replaced by Port 631 below; restored by unshare.
+		case strings.HasPrefix(trimmed, "Listen ") && strings.HasSuffix(trimmed, ":631") && !strings.HasPrefix(trimmed, "Listen /"),
+			strings.HasPrefix(trimmed, "Browsing "), strings.HasPrefix(trimmed, "BrowseLocalProtocols "):
+			// Replaced by the block below; restored by unshare.
 			out = append(out, listenMarker+line)
 			continue
 		case trimmed == "<Location />":
@@ -58,7 +64,7 @@ func shareCupsdConf(conf string) string {
 		}
 		out = append(out, line)
 	}
-	block := []string{beginMarker, "Port 631", "ServerAlias *", endMarker}
+	block := []string{beginMarker, "Port 631", "ServerAlias *", "Browsing Yes", "BrowseLocalProtocols dnssd", endMarker}
 	return strings.Join(append(block, out...), "\n")
 }
 

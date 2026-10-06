@@ -28,7 +28,7 @@ func TestShareCupsdConf(t *testing.T) {
 	}
 	for _, conf := range confs {
 		shared := shareCupsdConf(conf)
-		for _, want := range []string{"Port 631", "ServerAlias *", "Allow from 100.64.0.0/10", "Allow from fd7a:115c:a1e0::/48", "#mpcloud# Listen localhost:631", "Listen /run/cups/cups.sock"} {
+		for _, want := range []string{"Port 631", "ServerAlias *", "Allow from 100.64.0.0/10", "Allow from fd7a:115c:a1e0::/48", "#mpcloud# Listen localhost:631", "Listen /run/cups/cups.sock", "Browsing Yes", "#mpcloud# Browsing No"} {
 			if !strings.Contains(shared, want) {
 				t.Errorf("shared config missing %q", want)
 			}
