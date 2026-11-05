@@ -15,6 +15,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strconv"
@@ -198,6 +199,15 @@ func update(ctx context.Context, args []string) error {
 	}
 	if !newerVersion(version, tag) {
 		say("mpcloud %s is up to date (latest release: %s).", version, tag)
+		// An older updater may have left the CUPS queues with a stale PPD
+		// (it only swapped the binaries); the daily update run fixes that.
+		if _, err := os.Stat(ppdPath); err == nil && os.Geteuid() == 0 {
+			if n, err := refreshCUPS(); err != nil {
+				say("Couldn't refresh the printers' driver file: %v", err)
+			} else if n > 0 {
+				say("Refreshed the driver file for %d printer(s).", n)
+			}
+		}
 		return nil
 	}
 	if checkOnly {
@@ -227,10 +237,16 @@ func update(ctx context.Context, args []string) error {
 		}
 		return err
 	}
-	// Keep the CUPS backend (a root-owned copy) in step.
+	// Keep the CUPS backend (a root-owned copy) in step, and the queues'
+	// PPD, which only the new binary has: ask it to refresh them.
 	if _, err := os.Stat(backendPath); err == nil {
 		if err := replaceFile(backendPath, bin); err != nil {
 			say("Updated %s, but not the CUPS backend (%v); run: sudo mpcloud install-cups", exe, err)
+			return nil
+		}
+		if out, err := exec.Command(exe, "refresh-cups").CombinedOutput(); err != nil {
+			say("Updated %s, but not the printers' driver file (%v: %s); run: sudo mpcloud refresh-cups",
+				exe, err, strings.TrimSpace(string(out)))
 			return nil
 		}
 	}

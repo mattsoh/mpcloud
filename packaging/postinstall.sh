@@ -6,5 +6,7 @@ fi
 # Refresh the CUPS backend if the printers were already added to CUPS.
 if [ -x /usr/lib/cups/backend/mpcloud ] && [ -x /usr/bin/mpcloud ]; then
 	install -m 0755 /usr/bin/mpcloud /usr/lib/cups/backend/mpcloud || true
+	# ...and the PPD the queues use (it changes between releases).
+	/usr/bin/mpcloud refresh-cups >/dev/null 2>&1 || true
 fi
 exit 0

@@ -44,6 +44,8 @@ usage:
   mpcloud info                          show Mobility Print server info
   sudo mpcloud install-cups             add the printers to CUPS (lp, print dialogs)
   sudo mpcloud uninstall-cups           remove them again
+  sudo mpcloud refresh-cups             update those printers' driver file
+                                        (updates do this for you)
   sudo mpcloud share                    share those printers with your devices
                                         over Tailscale (incl. AirPrint profile)
   sudo mpcloud unshare                  stop sharing
@@ -127,6 +129,18 @@ func run(ctx context.Context, cmd string, args []string, verbose bool) error {
 
 	case "uninstall-cups":
 		return uninstallCUPS()
+
+	case "refresh-cups":
+		n, err := refreshCUPS()
+		if err != nil {
+			return err
+		}
+		if n == 0 {
+			fmt.Println("The printers' driver file is already up to date.")
+		} else {
+			fmt.Printf("Updated the driver file for %d printer(s).\n", n)
+		}
+		return nil
 
 	case "share":
 		return shareTailscale()

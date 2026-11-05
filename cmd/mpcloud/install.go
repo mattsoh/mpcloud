@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	_ "embed"
 	"errors"
@@ -188,6 +189,35 @@ func installCUPS(ctx context.Context) error {
 		fmt.Println("and password. After that, it remembers you.")
 	}
 	return nil
+}
+
+// refreshCUPS brings the installed PPD up to date with the one embedded in
+// this binary and re-attaches it to every mpcloud queue in CUPS. Updates
+// change the PPD now and then (e.g. the switch to sending PDF), and a queue
+// keeps its own copy, so a new binary alone doesn't fix printing. It returns
+// the number of queues refreshed; nothing is touched when the PPD is current.
+func refreshCUPS() (int, error) {
+	if err := requireRoot("refresh-cups"); err != nil {
+		return 0, err
+	}
+	cur, err := os.ReadFile(ppdPath)
+	if err != nil {
+		return 0, errors.New("no mpcloud printers in CUPS yet; run: sudo mpcloud install-cups")
+	}
+	if bytes.Equal(cur, ppd) {
+		return 0, nil
+	}
+	if err := os.WriteFile(ppdPath, ppd, 0o644); err != nil {
+		return 0, err
+	}
+	n := 0
+	for _, q := range mpcloudQueues() {
+		if err := runCmd("lpadmin", "-p", q, "-P", ppdPath); err != nil {
+			return n, err
+		}
+		n++
+	}
+	return n, nil
 }
 
 func uninstallCUPS() error {
